@@ -178,6 +178,15 @@ target_sources( amrex
    AMReX_PlotFileUtil.H
    AMReX_PlotFileDataImpl.H
    AMReX_PlotFileDataImpl.cpp
+   # Integration ----------------------------------------------------------------
+   AMReX_FEIntegrator.H
+   AMReX_IntegratorBase.H
+   AMReX_TimeIntegrator.H
+   AMReX_RKIntegrator.H
+   AMReX_FEIntegrator.cpp
+   AMReX_IntegratorBase.cpp
+   AMReX_RKIntegrator.cpp
+   AMReX_TimeIntegrator.cpp
    # GPU --------------------------------------------------------------------
    AMReX_Gpu.H
    AMReX_GpuQualifiers.H
