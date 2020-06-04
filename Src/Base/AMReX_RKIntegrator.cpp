@@ -138,8 +138,8 @@ Real RKIntegrator::advance(const Real timestep)
     auto& S_tmp = *S_tmp_ptr;
 
     // Assume before advance() that S_new is valid data at the current time ("time" argument)
-    // So we update S_old by copying the current state.
-    MultiFab::Copy(S_old, S_new, 0, 0, S_old.nComp(), S_old.nGrow());
+    // So we update S_old by swapping the old/new state.
+    std::swap(S_old, S_new);
 
     // Fill the RHS F_nodes at each stage
     for (int i = 0; i < number_nodes; ++i)
@@ -156,7 +156,7 @@ Real RKIntegrator::advance(const Real timestep)
             // We should fuse these kernels ...
             for (int j = 0; j < i; ++j)
             {
-                MultiFab::Saxpy(S_tmp, timestep * tableau[i][j], F_nodes[j], 0, 0, S_tmp.nComp(), S_tmp.nGrow());
+                MultiFab::Saxpy(S_tmp, timestep * tableau[i][j], F_nodes[j], 0, 0, S_tmp.nComp(), 0);
             }
 
             // Call the post-update hook for S_tmp
@@ -173,7 +173,7 @@ Real RKIntegrator::advance(const Real timestep)
     // We should fuse these kernels ...
     for (int i = 0; i < number_nodes; ++i)
     {
-        MultiFab::Saxpy(S_new, timestep * weights[i], F_nodes[i], 0, 0, S_new.nComp(), S_new.nGrow());
+        MultiFab::Saxpy(S_new, timestep * weights[i], F_nodes[i], 0, 0, S_new.nComp(), 0);
     }
 
     // Call the post-update hook for S_new
