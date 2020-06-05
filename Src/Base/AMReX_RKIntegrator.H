@@ -143,8 +143,8 @@ private:
     }
 
 public:
-    RKIntegrator(T& S_old_external, T& S_new_external, amrex::Real time) : 
-                    IntegratorBase(S_old_external, S_new_external, time)
+    RKIntegrator(T& S_old, T& S_new, amrex::Real time) :
+                    IntegratorBase(S_old, S_new, time)
     {
         initialize_parameters();
         initialize_stages();
