@@ -128,7 +128,7 @@ void RKIntegrator::initialize_stages()
     // Create MultiFabs for stages
     for (int i = 0; i < number_nodes; ++i)
     {
-        F_nodes.emplace_back(S_old.boxArray(), S_old.DistributionMap(), S_old.nComp(), S_old.nGrow());
+        F_nodes.emplace_back(S_old.boxArray(), S_old.DistributionMap(), S_old.nComp(), 0);
     }
 }
 
