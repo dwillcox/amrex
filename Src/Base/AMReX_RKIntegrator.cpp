@@ -125,7 +125,7 @@ void RKIntegrator::initialize_stages()
     // Create MultiFabs for stages
     for (int i = 0; i < number_nodes; ++i)
     {
-        F_nodes.emplace_back(S_old.boxArray(), S_old.DistributionMap(), S_old.nComp(), 0);
+        IntegratorOps::EmplaceLike(F_nodes, S_old);
     }
 }
 
@@ -144,14 +144,14 @@ Real RKIntegrator::advance(const Real timestep)
 
         // Fill S_new with the solution value for evaluating F at the current stage
         // Copy S_new = S_old
-        MultiFab::Copy(S_new, S_old, 0, 0, S_old.nComp(), S_old.nGrow());
+        IntegratorOps::Copy(S_new, S_old);
         if (i > 0) {
             // Saxpy across the tableau row:
             // S_new += h * Aij * Fj
             // We should fuse these kernels ...
             for (int j = 0; j < i; ++j)
             {
-                MultiFab::Saxpy(S_new, timestep * tableau[i][j], F_nodes[j], 0, 0, S_new.nComp(), 0);
+                IntegratorOps::Saxpy(S_new, timestep * tableau[i][j], F_nodes[j]);
             }
 
             // Call the post-update hook for the stage state value
@@ -166,10 +166,10 @@ Real RKIntegrator::advance(const Real timestep)
     // Fill new State, starting with S_new = S_old.
     // Then Saxpy S_new += h * Wi * Fi for integration weights Wi
     // We should fuse these kernels ...
-    MultiFab::Copy(S_new, S_old, 0, 0, S_old.nComp(), S_old.nGrow());
+    IntegratorOps::Copy(S_new, S_old);
     for (int i = 0; i < number_nodes; ++i)
     {
-        MultiFab::Saxpy(S_new, timestep * weights[i], F_nodes[i], 0, 0, S_new.nComp(), 0);
+        IntegratorOps::Saxpy(S_new, timestep * weights[i], F_nodes[i]);
     }
 
     // Call the post-update hook for S_new
