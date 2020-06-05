@@ -11,14 +11,14 @@ namespace ButcherTableauTypes {
     enum ButcherTypes {User = 0, ForwardEuler, Trapezoid, SSPRK3, RK4, NumTypes};
 };
 
-class RKIntegrator : public IntegratorBase
+template<class T>
+class RKIntegrator : public IntegratorBase<T>
 {
 private:
     int tableau_type;
     int number_nodes;
     bool use_adaptive_timestep;
-    amrex::Vector<amrex::MultiFab> F_nodes;
-    std::unique_ptr<amrex::MultiFab> S_tmp_ptr;
+    amrex::Vector<T> F_nodes;
     amrex::Vector<amrex::Vector<amrex::Real> > tableau;
     amrex::Vector<amrex::Real> weights;
     amrex::Vector<amrex::Real> extended_weights;
@@ -28,7 +28,7 @@ private:
     void initialize_stages();
 
 public:
-    RKIntegrator(amrex::MultiFab& S_old_external, amrex::MultiFab& S_new_external, amrex::Real time);
+    RKIntegrator(T& S_old_external, T& S_new_external, amrex::Real time);
     amrex::Real advance(const amrex::Real timestep);
 };
 
