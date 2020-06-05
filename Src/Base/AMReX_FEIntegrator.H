@@ -3,7 +3,6 @@
 #include <functional>
 #include <AMReX_REAL.H>
 #include <AMReX_Vector.H>
-#include <AMReX_MultiFab.H>
 #include "AMReX_IntegratorBase.H"
 
 template<class T>
