@@ -1,14 +1,16 @@
 #ifndef AMREX_INTEGRATOR_BASE_H
 #define AMREX_INTEGRATOR_BASE_H
 #include <functional>
+#include <type_traits>
 #include <AMReX_REAL.H>
 #include <AMReX_Vector.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_Particles.H>
 
+template<class T, typename Tv = void> struct IntegratorOps;
+
 template<class T>
-typename std::enable_if<std::is_base_of<amrex::ParticleContainerBase, T>::value>::type
-struct IntegratorOps
+struct IntegratorOps<T, typename std::enable_if<std::is_base_of<amrex::ParticleContainerBase, T>::value>::type>
 {
 
     static void EmplaceLike(amrex::Vector<T>& V, const T& Other)
@@ -26,13 +28,15 @@ struct IntegratorOps
     static void Copy(T& Y, const T& Other)
     {
         // Copy the contents of Other into Y
-        Y.copyParticles(Other);
+        const bool local = true;
+        Y.copyParticles(Other, local);
     }
 
     static void Saxpy(T& Y, const amrex::Real a, const T& X)
     {
         // Calculate Y += a * X for all the Real struct data in the particles.
         typedef amrex::ParIter<T::NStructReal, T::NStructInt, T::NArrayReal, T::NArrayInt> TParIter;
+        typedef amrex::Particle<T::NStructReal, T::NStructInt> ParticleType;
 
         int lev = 0;
         TParIter pty(Y, lev);
@@ -63,10 +67,6 @@ struct IntegratorOps
                 ParticleType& py = psy[i];
                 ParticleType& px = psx[i];
 
-                for (int j = 0; j < AMREX_SPACEDIM; ++j) {
-                    py.pos(j) += a * px.pos(j);
-                }
-
                 for (int j = 0; j < T::NStructReal; ++j) {
                     py.rdata(j) += a * px.rdata(j);
                 }
@@ -77,8 +77,7 @@ struct IntegratorOps
 };
 
 template<class T>
-typename std::enable_if<std::is_same<amrex::MultiFab, T>::value>::type
-struct IntegratorOps
+struct IntegratorOps<T, typename std::enable_if<std::is_same<amrex::MultiFab, T>::value>::type>
 {
 
     static void EmplaceLike(amrex::Vector<T>& V, const T& Other, bool Grow = false)
@@ -88,18 +87,18 @@ struct IntegratorOps
         V.emplace_back(Other.boxArray(), Other.DistributionMap(), Other.nComp(), nGrow);
     }
 
-    static void Copy(T& Y, const T& Other, bool Grow = false)
+    static void Copy(T& Y, const T& Other, bool Grow = true)
     {
         // Copy the contents of Other into Y
         int nGrow = Grow ? Other.nGrow() : 0;
-        MultiFab::Copy(Y, Other, 0, 0, Other.nComp(), nGrow);
+        amrex::MultiFab::Copy(Y, Other, 0, 0, Other.nComp(), nGrow);
     }
 
     static void Saxpy(T& Y, const amrex::Real a, const T& X, bool Grow = false)
     {
         // Calculate Y += a * X
         int nGrow = Grow ? X.nGrow() : 0;
-        MultiFab::Saxpy(Y, a, X, 0, 0, X.nComp(), 0);
+        amrex::MultiFab::Saxpy(Y, a, X, 0, 0, X.nComp(), nGrow);
     }
 
 };
@@ -111,7 +110,7 @@ private:
     std::function<void(T&, const T&, const amrex::Real)> Fun;
 
 protected:
-    std::function<void (T&)> post_update;
+    std::function<void (T&, amrex::Real)> post_update;
     T& S_old;
     T& S_new;
     amrex::Real time;
@@ -127,7 +126,7 @@ public:
         Fun = F;
     }
 
-    void set_post_update(std::function<void (T&)> F)
+    void set_post_update(std::function<void (T&, amrex::Real)> F)
     {
         post_update = F;
     }
@@ -152,7 +151,7 @@ public:
         return S_old;
     }
 
-    amrex::Real get_time()
+    amrex::Real& get_time()
     {
         return time;
     }
