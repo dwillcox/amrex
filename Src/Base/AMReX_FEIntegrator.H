@@ -9,33 +9,39 @@ template<class T>
 class FEIntegrator : public IntegratorBase<T>
 {
 private:
+    typedef IntegratorBase<T> BaseT;
+
     amrex::Vector<T> F_nodes;
 
 public:
     FEIntegrator(T& S_old, T& S_new, amrex::Real time) :
-                    IntegratorBase(S_old, S_new, time)
+                    IntegratorBase<T>(S_old, S_new, time)
     {
-        IntegratorOps::EmplaceLike(F_nodes, S_old);
+        IntegratorOps<T>::EmplaceLike(F_nodes, S_old);
     }
 
     amrex::Real advance(const amrex::Real timestep)
     {
-        // Assume before advance() that S_new is valid data at the current time ("time" argument)
-        // So we update S_old by copying the new state.
-        IntegratorOps::Copy(S_old, S_new);
+        // Assume before advance() that S_old is valid data at the current time ("time" argument)
+        // So we initialize S_new by copying the old state.
+        T& S_old = BaseT::get_old_data();
+        T& S_new = BaseT::get_new_data();
+
+        IntegratorOps<T>::Copy(S_new, S_old);
 
         // F = RHS(S, t)
+        amrex::Real& time = BaseT::get_time();
         T& F = F_nodes[0];
-        rhs(F, S_new, time);
+        BaseT::rhs(F, S_new, time);
 
         // S_new += timestep * dS/dt
-        IntegratorOps::Saxpy(S_new, timestep, F);
-
-        // Call the post-update hook for S_new
-        post_update(S_new);
+        IntegratorOps<T>::Saxpy(S_new, timestep, F);
 
         // Update time
         time += timestep;
+
+        // Call the post-update hook for S_new
+        BaseT::post_update(S_new, time);
 
         // Return timestep
         return timestep;
