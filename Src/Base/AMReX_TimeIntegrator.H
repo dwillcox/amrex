@@ -26,7 +26,7 @@ private:
 public:
     TimeIntegrator(T& S_old_external, T& S_new_external, amrex::Real initial_time)
     {
-        ParmParse pp("integration");
+        amrex::ParmParse pp("integration");
 
         int integrator_type = IntegratorTypes::ForwardEuler;
         pp.query("type", integrator_type);
@@ -34,13 +34,13 @@ public:
         switch (integrator_type)
         {
             case IntegratorTypes::ForwardEuler:
-                integrator_ptr = std::make_unique<FEIntegrator>(S_old_external, S_new_external, initial_time);
+                integrator_ptr = std::make_unique<FEIntegrator<T> >(S_old_external, S_new_external, initial_time);
                 break;
             case IntegratorTypes::ExplicitRungeKutta:
-                integrator_ptr = std::make_unique<RKIntegrator>(S_old_external, S_new_external, initial_time);
+                integrator_ptr = std::make_unique<RKIntegrator<T> >(S_old_external, S_new_external, initial_time);
                 break;
             default:
-                Error("integration.type did not name a valid integrator type.");
+                amrex::Error("integration.type did not name a valid integrator type.");
                 break;
         }
 
@@ -49,10 +49,10 @@ public:
 
         // By default, do nothing after updating the state
         // In general, this is where BCs should be filled
-        set_post_update([](T& S_data){});
+        set_post_update([](T& S_data, amrex::Real S_time){});
 
         // By default, set the RHS to 0.0
-        set_rhs([](T& S_rhs, const T& S_data, const Real time){ S_rhs = 0.0; });
+        set_rhs([](T& S_rhs, const T& S_data, const amrex::Real time){ S_rhs = 0.0; });
 
         // Set the initial time and step number
         time = initial_time;
@@ -64,7 +64,7 @@ public:
         post_timestep = F;
     }
 
-    void set_post_update(std::function<void (T&)> F)
+    void set_post_update(std::function<void (T&, amrex::Real)> F)
     {
         integrator_ptr->set_post_update(F);
     }
@@ -76,7 +76,7 @@ public:
 
     void integrate(const amrex::Real start_timestep, const amrex::Real end_time, const int nsteps)
     {
-        Real timestep = start_timestep;
+        amrex::Real timestep = start_timestep;
         bool stop_advance = false;
         for (step_number = 0; step_number < nsteps && !stop_advance; ++step_number)
         {
