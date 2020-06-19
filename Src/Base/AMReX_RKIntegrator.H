@@ -14,6 +14,8 @@ template<class T>
 class RKIntegrator : public IntegratorBase<T>
 {
 private:
+    typedef IntegratorBase<T> BaseT;
+
     int tableau_type;
     int number_nodes;
     bool use_adaptive_timestep;
@@ -60,7 +62,7 @@ private:
                 weights = {1./6., 1./3., 1./3., 1./6.};
                 break;
             default:
-                Error("Invalid RK Integrator tableau type");
+                amrex::Error("Invalid RK Integrator tableau type");
                 break;
         }
 
@@ -69,7 +71,7 @@ private:
 
     void initialize_parameters()
     {
-        ParmParse pp("integration.rk");
+        amrex::ParmParse pp("integration.rk");
 
         // Read an integrator type, if not recognized, then read weights/nodes/butcher tableau
         tableau_type = 0;
@@ -87,19 +89,19 @@ private:
             pp.queryarr("extended_weights", extended_weights);
             pp.queryarr("nodes", nodes);
 
-            Vector<amrex::Real> btable; // flattened into row major format
+            amrex::Vector<amrex::Real> btable; // flattened into row major format
             pp.queryarr("tableau", btable);
 
             // Sanity check the inputs
             if (weights.size() != nodes.size())
             {
-                Error("integration.rk.weights should be the same length as integration.rk.nodes");
+                amrex::Error("integration.rk.weights should be the same length as integration.rk.nodes");
             } else {
                 number_nodes = weights.size();
                 const int nTableau = (number_nodes * (number_nodes + 1)) / 2; // includes diagonal
                 if (btable.size() != nTableau)
                 {
-                    Error("integration.rk.tableau incorrect length - should include the Butcher Tableau diagonal.");
+                    amrex::Error("integration.rk.tableau incorrect length - should include the Butcher Tableau diagonal.");
                 }
             }
 
@@ -107,7 +109,7 @@ private:
             int k = 0;
             for (int i = 0; i < number_nodes; ++i)
             {
-                Vector<amrex::Real> stage_row;
+                amrex::Vector<amrex::Real> stage_row;
                 for (int j = 0; j <= i; ++j)
                 {
                     stage_row.push_back(btable[k]);
@@ -122,40 +124,45 @@ private:
             {
                 if (astage.back() != 0.0)
                 {
-                    Error("RKIntegrator currently only supports explicit Butcher tableaus.");
+                    amrex::Error("RKIntegrator currently only supports explicit Butcher tableaus.");
                 }
             }
         } else if (tableau_type > ButcherTableauTypes::User && tableau_type < ButcherTableauTypes::NumTypes)
         {
             initialize_preset_tableau();
         } else {
-            Error("RKIntegrator received invalid input for integration.rk.type");
+            amrex::Error("RKIntegrator received invalid input for integration.rk.type");
         }
     }
 
     void initialize_stages()
     {
+        T& S_old = BaseT::get_old_data();
+
         // Create data for stage RHS
         for (int i = 0; i < number_nodes; ++i)
         {
-            IntegratorOps::EmplaceLike(F_nodes, S_old);
+            IntegratorOps<T>::EmplaceLike(F_nodes, S_old);
         }
     }
 
 public:
     RKIntegrator(T& S_old, T& S_new, amrex::Real time) :
-                    IntegratorBase(S_old, S_new, time)
+                    IntegratorBase<T>(S_old, S_new, time)
     {
         initialize_parameters();
         initialize_stages();
     }
 
-    amrex::Real RKIntegrator::advance(const amrex::Real timestep)
+    amrex::Real advance(const amrex::Real timestep)
     {
-        // Assume before advance() that S_new is valid data at the current time ("time" argument)
-        // So we update S_old by swapping the old/new state.
-        // Then for evaluating the stages, use S_new as scratch space
-        std::swap(S_old, S_new);
+        // Assume before advance() that S_old is valid data at the current time ("time" argument)
+        // And that if data is a MultiFab, both S_old and S_new contain ghost cells for evaluating a stencil based RHS
+        // We need this from S_old. This is convenient for S_new to have so we can use it
+        // as scratch space for stage values without creating a new scratch MultiFab with ghost cells.
+        T& S_old = BaseT::get_old_data();
+        T& S_new = BaseT::get_new_data();
+        amrex::Real& time = BaseT::get_time();
 
         // Fill the RHS F_nodes at each stage
         for (int i = 0; i < number_nodes; ++i)
@@ -165,39 +172,39 @@ public:
 
             // Fill S_new with the solution value for evaluating F at the current stage
             // Copy S_new = S_old
-            IntegratorOps::Copy(S_new, S_old);
+            IntegratorOps<T>::Copy(S_new, S_old);
             if (i > 0) {
                 // Saxpy across the tableau row:
                 // S_new += h * Aij * Fj
                 // We should fuse these kernels ...
                 for (int j = 0; j < i; ++j)
                 {
-                    IntegratorOps::Saxpy(S_new, timestep * tableau[i][j], F_nodes[j]);
+                    IntegratorOps<T>::Saxpy(S_new, timestep * tableau[i][j], F_nodes[j]);
                 }
 
                 // Call the post-update hook for the stage state value
-                post_update(S_new);
+                BaseT::post_update(S_new, stage_time);
             }
 
             // Fill F[i], the RHS at the current stage
             // F[i] = RHS(y, t) at y = stage_value, t = stage_time
-            rhs(F_nodes[i], S_new, stage_time);
+            BaseT::rhs(F_nodes[i], S_new, stage_time);
         }
 
         // Fill new State, starting with S_new = S_old.
         // Then Saxpy S_new += h * Wi * Fi for integration weights Wi
         // We should fuse these kernels ...
-        IntegratorOps::Copy(S_new, S_old);
+        IntegratorOps<T>::Copy(S_new, S_old);
         for (int i = 0; i < number_nodes; ++i)
         {
-            IntegratorOps::Saxpy(S_new, timestep * weights[i], F_nodes[i]);
+            IntegratorOps<T>::Saxpy(S_new, timestep * weights[i], F_nodes[i]);
         }
-
-        // Call the post-update hook for S_new
-        post_update(S_new);
 
         // Update time
         time += timestep;
+
+        // Call the post-update hook for S_new
+        BaseT::post_update(S_new, time);
 
         // If we are working with an extended Butcher tableau, we can estimate the error here,
         // and then calculate an adaptive timestep.
