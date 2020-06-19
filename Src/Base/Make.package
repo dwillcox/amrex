@@ -190,7 +190,6 @@ C$(AMREX_BASE)_headers += AMReX_BaseUmap.H
 #
 # Integration
 #
-C$(AMREX_BASE)_sources += AMReX_FEIntegrator.cpp AMReX_IntegratorBase.cpp AMReX_RKIntegrator.cpp AMReX_TimeIntegrator.cpp 
 C$(AMREX_BASE)_headers += AMReX_FEIntegrator.H AMReX_IntegratorBase.H AMReX_TimeIntegrator.H AMReX_RKIntegrator.H
 
 #
