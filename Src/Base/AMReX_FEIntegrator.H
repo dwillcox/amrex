@@ -11,13 +11,13 @@ class FEIntegrator : public IntegratorBase<T>
 private:
     typedef IntegratorBase<T> BaseT;
 
-    amrex::Vector<T> F_nodes;
+    amrex::Vector<std::unique_ptr<T> > F_nodes;
 
 public:
     FEIntegrator(T& S_old, T& S_new, amrex::Real time) :
                     IntegratorBase<T>(S_old, S_new, time)
     {
-        IntegratorOps<T>::EmplaceLike(F_nodes, S_old);
+        IntegratorOps<T>::CreateLike(F_nodes, S_old);
     }
 
     amrex::Real advance(const amrex::Real timestep)
@@ -31,7 +31,7 @@ public:
 
         // F = RHS(S, t)
         amrex::Real& time = BaseT::get_time();
-        T& F = F_nodes[0];
+        T& F = *F_nodes[0];
         BaseT::rhs(F, S_new, time);
 
         // S_new += timestep * dS/dt
@@ -51,8 +51,8 @@ public:
     {
         Map(BaseT::get_old_data());
 
-        for (auto& F : F_nodes) {
-            Map(F);
+        for (T* F : F_nodes) {
+            Map(*F);
         }
 
         Map(BaseT::get_new_data());
