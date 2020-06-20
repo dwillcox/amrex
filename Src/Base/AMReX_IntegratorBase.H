@@ -32,9 +32,9 @@ struct IntegratorOps<T, typename std::enable_if<std::is_base_of<amrex::ParticleC
         Y.copyParticles(Other, local);
     }
 
-    static void Saxpy(T& Y, const amrex::Real a, const T& X)
+    static void Saxpy(T& Y, const amrex::Real a, T& X)
     {
-        // Calculate Y += a * X for all the Real struct data in the particles.
+        // Calculate Y += a * X using a particle-level saxpy function supplied by the particle container T
         typedef amrex::ParIter<T::NStructReal, T::NStructInt, T::NArrayReal, T::NArrayInt> TParIter;
         typedef amrex::Particle<T::NStructReal, T::NStructInt> ParticleType;
 
@@ -63,13 +63,12 @@ struct IntegratorOps<T, typename std::enable_if<std::is_base_of<amrex::ParticleC
             ParticleType* psy = &(pty.GetArrayOfStructs()[0]);
             ParticleType* psx = &(ptx.GetArrayOfStructs()[0]);
 
-            ParallelFor ( npy, [=] AMREX_GPU_DEVICE (int i) {
-                ParticleType& py = psy[i];
-                ParticleType& px = psx[i];
+            auto particle_apply_rhs = T::particle_apply_rhs;
 
-                for (int j = 0; j < T::NStructReal; ++j) {
-                    py.rdata(j) += a * px.rdata(j);
-                }
+            amrex::ParallelFor ( npy, [=] AMREX_GPU_DEVICE (int i) {
+                ParticleType& py = psy[i];
+                const ParticleType& px = psx[i];
+                particle_apply_rhs(py, a, px);
             });
         }
     }
@@ -149,6 +148,12 @@ public:
     T& get_old_data()
     {
         return S_old;
+    }
+
+    void map_data(std::function<void(T&)> Map)
+    {
+        Map(get_old_data());
+        Map(get_new_data());
     }
 
     amrex::Real& get_time()

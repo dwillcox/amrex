@@ -51,8 +51,8 @@ public:
         // In general, this is where BCs should be filled
         set_post_update([](T& S_data, amrex::Real S_time){});
 
-        // By default, set the RHS to 0.0
-        set_rhs([](T& S_rhs, const T& S_data, const amrex::Real time){ S_rhs = 0.0; });
+        // By default, do nothing
+        set_rhs([](T& S_rhs, const T& S_data, const amrex::Real time){});
 
         // Set the initial time and step number
         time = initial_time;
@@ -85,6 +85,10 @@ public:
                 stop_advance = true;
             }
 
+            if (step_number > 0) {
+                std::swap(get_old_data(), get_new_data());
+            }
+
             // Call the time integrator advance
             integrator_ptr->advance(timestep);
 
@@ -94,6 +98,11 @@ public:
             // Call the post-timestep hook
             post_timestep();
         }
+    }
+
+    void map_data(std::function<void(T&)> Map)
+    {
+        integrator_ptr->map_data(Map);
     }
 
     T& get_new_data()
@@ -114,6 +123,11 @@ public:
     amrex::Real get_timestep()
     {
         return timestep;
+    }
+
+    void set_timestep(amrex::Real dt)
+    {
+        timestep = dt;
     }
 
     int get_step_number()

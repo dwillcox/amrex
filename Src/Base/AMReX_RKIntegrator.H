@@ -212,6 +212,18 @@ public:
         // Return timestep
         return timestep;
     }
+
+    void map_data(std::function<void(T&)> Map)
+    {
+        Map(BaseT::get_old_data());
+
+        for (auto& F : F_nodes) {
+            Map(F);
+        }
+
+        Map(BaseT::get_new_data());
+    }
+
 };
 
 #endif
