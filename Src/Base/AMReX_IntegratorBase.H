@@ -13,12 +13,11 @@ template<class T>
 struct IntegratorOps<T, typename std::enable_if<std::is_base_of<amrex::ParticleContainerBase, T>::value>::type>
 {
 
-    static void EmplaceLike(amrex::Vector<T>& V, const T& Other)
+    static void CreateLike(amrex::Vector<std::unique_ptr<T> >& V, const T& Other)
     {
         // Emplace a new T in V with the same size as Other and get a reference
-        int i = V.size();
-        V.emplace_back(Other.Geom(0), Other.ParticleDistributionMap(0), Other.ParticleBoxArray(0));
-        T& pc = V[i];
+        V.emplace_back(std::make_unique<T>(Other.Geom(0), Other.ParticleDistributionMap(0), Other.ParticleBoxArray(0)));
+        T& pc = *V[V.size()-1];
 
         // We want the particles to have all the same position, cpu, etc.
         // as in Other, so do a copy from Other to our new particle container.
@@ -79,11 +78,11 @@ template<class T>
 struct IntegratorOps<T, typename std::enable_if<std::is_same<amrex::MultiFab, T>::value>::type>
 {
 
-    static void EmplaceLike(amrex::Vector<T>& V, const T& Other, bool Grow = false)
+    static void CreateLike(amrex::Vector<std::unique_ptr<T> >& V, const T& Other, bool Grow = false)
     {
         // Emplace a new T in V with the same size as Other
         int nGrow = Grow ? Other.nGrow() : 0;
-        V.emplace_back(Other.boxArray(), Other.DistributionMap(), Other.nComp(), nGrow);
+        V.emplace_back(std::make_unique<T>(Other.boxArray(), Other.DistributionMap(), Other.nComp(), nGrow));
     }
 
     static void Copy(T& Y, const T& Other, bool Grow = true)

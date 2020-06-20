@@ -19,7 +19,7 @@ private:
     int tableau_type;
     int number_nodes;
     bool use_adaptive_timestep;
-    amrex::Vector<T> F_nodes;
+    amrex::Vector<std::unique_ptr<T> > F_nodes;
     amrex::Vector<amrex::Vector<amrex::Real> > tableau;
     amrex::Vector<amrex::Real> weights;
     amrex::Vector<amrex::Real> extended_weights;
@@ -142,7 +142,7 @@ private:
         // Create data for stage RHS
         for (int i = 0; i < number_nodes; ++i)
         {
-            IntegratorOps<T>::EmplaceLike(F_nodes, S_old);
+            IntegratorOps<T>::CreateLike(F_nodes, S_old);
         }
     }
 
@@ -179,7 +179,7 @@ public:
                 // We should fuse these kernels ...
                 for (int j = 0; j < i; ++j)
                 {
-                    IntegratorOps<T>::Saxpy(S_new, timestep * tableau[i][j], F_nodes[j]);
+                    IntegratorOps<T>::Saxpy(S_new, timestep * tableau[i][j], *F_nodes[j]);
                 }
 
                 // Call the post-update hook for the stage state value
@@ -188,7 +188,7 @@ public:
 
             // Fill F[i], the RHS at the current stage
             // F[i] = RHS(y, t) at y = stage_value, t = stage_time
-            BaseT::rhs(F_nodes[i], S_new, stage_time);
+            BaseT::rhs(*F_nodes[i], S_new, stage_time);
         }
 
         // Fill new State, starting with S_new = S_old.
@@ -197,7 +197,7 @@ public:
         IntegratorOps<T>::Copy(S_new, S_old);
         for (int i = 0; i < number_nodes; ++i)
         {
-            IntegratorOps<T>::Saxpy(S_new, timestep * weights[i], F_nodes[i]);
+            IntegratorOps<T>::Saxpy(S_new, timestep * weights[i], *F_nodes[i]);
         }
 
         // Update time
@@ -217,8 +217,8 @@ public:
     {
         Map(BaseT::get_old_data());
 
-        for (auto& F : F_nodes) {
-            Map(F);
+        for (T* F : F_nodes) {
+            Map(*F);
         }
 
         Map(BaseT::get_new_data());
