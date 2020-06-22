@@ -74,6 +74,11 @@ public:
         integrator_ptr->set_rhs(F);
     }
 
+    void advance(const amrex::Real dt)
+    {
+        integrator_ptr->advance(dt);
+    }
+
     void integrate(const amrex::Real start_timestep, const amrex::Real end_time, const int nsteps)
     {
         amrex::Real timestep = start_timestep;
