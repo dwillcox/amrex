@@ -119,6 +119,8 @@ public:
                         S_old(S_old_external),
                         S_new(S_new_external) {}
 
+    virtual ~IntegratorBase() {}
+
     void set_rhs(std::function<void(T&, const T&, const amrex::Real)> F)
     {
         Fun = F;
