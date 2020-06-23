@@ -59,6 +59,8 @@ public:
         step_number = 0;
     }
 
+    virtual ~TimeIntegrator() {}
+
     void set_post_timestep(std::function<void ()> F)
     {
         post_timestep = F;

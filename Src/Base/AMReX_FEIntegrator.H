@@ -20,6 +20,8 @@ public:
         IntegratorOps<T>::CreateLike(F_nodes, S_old);
     }
 
+    virtual ~FEIntegrator() {}
+
     amrex::Real advance(const amrex::Real timestep)
     {
         // Assume before advance() that S_old is valid data at the current time ("time" argument)
