@@ -135,36 +135,30 @@ private:
         }
     }
 
-    void initialize_stages()
+    void initialize_stages(const T& S_data)
     {
-        T& S_old = BaseT::get_old_data();
-
         // Create data for stage RHS
         for (int i = 0; i < number_nodes; ++i)
         {
-            IntegratorOps<T>::CreateLike(F_nodes, S_old);
+            IntegratorOps<T>::CreateLike(F_nodes, S_data);
         }
     }
 
 public:
-    RKIntegrator(T& S_old, T& S_new, amrex::Real time) :
-                    IntegratorBase<T>(S_old, S_new, time)
+    RKIntegrator(const T& S_data)
     {
         initialize_parameters();
-        initialize_stages();
+        initialize_stages(S_data);
     }
 
     virtual ~RKIntegrator() {}
 
-    amrex::Real advance(const amrex::Real timestep)
+    amrex::Real advance(T& S_old, T& S_new, amrex::Real time, const amrex::Real timestep)
     {
         // Assume before advance() that S_old is valid data at the current time ("time" argument)
         // And that if data is a MultiFab, both S_old and S_new contain ghost cells for evaluating a stencil based RHS
         // We need this from S_old. This is convenient for S_new to have so we can use it
         // as scratch space for stage values without creating a new scratch MultiFab with ghost cells.
-        T& S_old = BaseT::get_old_data();
-        T& S_new = BaseT::get_new_data();
-        amrex::Real& time = BaseT::get_time();
 
         // Fill the RHS F_nodes at each stage
         for (int i = 0; i < number_nodes; ++i)
@@ -202,11 +196,8 @@ public:
             IntegratorOps<T>::Saxpy(S_new, timestep * weights[i], *F_nodes[i]);
         }
 
-        // Update time
-        time += timestep;
-
         // Call the post-update hook for S_new
-        BaseT::post_update(S_new, time);
+        BaseT::post_update(S_new, time + timestep);
 
         // If we are working with an extended Butcher tableau, we can estimate the error here,
         // and then calculate an adaptive timestep.
@@ -215,15 +206,39 @@ public:
         return timestep;
     }
 
+    void time_interpolate(const T& S_old, amrex::Real timestep_fraction, T& data)
+    {
+        // currently we only do this for 4th order RK
+        AMREX_ASSERT(number_nodes == 4);
+
+        // fill data using MC Equation 39 at time + timestep_fraction * dt
+        amrex::Real c = 0;
+
+        // data = S_old
+        IntegratorOps<T>::Copy(data, S_old);
+
+        // data += (chi - 3/2 * chi^2 + 2/3 * chi^3) * k1
+        c = timestep_fraction - 1.5 * std::pow(timestep_fraction, 2) + 2./3. * std::pow(timestep_fraction, 3);
+        IntegratorOps<T>::Saxpy(data, c, *F_nodes[0]);
+
+        // data += (chi^2 - 2/3 * chi^3) * k2
+        c = std::pow(timestep_fraction, 2) - 2./3. * std::pow(timestep_fraction, 3);
+        IntegratorOps<T>::Saxpy(data, c, *F_nodes[1]);
+
+        // data += (chi^2 - 2/3 * chi^3) * k3
+        c = std::pow(timestep_fraction, 2) - 2./3. * std::pow(timestep_fraction, 3);
+        IntegratorOps<T>::Saxpy(data, c, *F_nodes[2]);
+
+        // data += (-1/2 * chi^2 + 2/3 * chi^3) * k4
+        c = -0.5 * std::pow(timestep_fraction, 2) + 2./3. * std::pow(timestep_fraction, 3);
+        IntegratorOps<T>::Saxpy(data, c, *F_nodes[3]);
+    } 
+
     void map_data(std::function<void(T&)> Map)
     {
-        Map(BaseT::get_old_data());
-
-        for (T* F : F_nodes) {
+        for (auto F : F_nodes) {
             Map(*F);
         }
-
-        Map(BaseT::get_new_data());
     }
 
 };

@@ -17,14 +17,11 @@ template<class T>
 class TimeIntegrator
 {
 private:
-    amrex::Real time;
-    amrex::Real timestep;
-    int step_number;
     std::unique_ptr<IntegratorBase<T> > integrator_ptr;
     std::function<void ()> post_timestep;
 
 public:
-    TimeIntegrator(T& S_old_external, T& S_new_external, amrex::Real initial_time)
+    TimeIntegrator(T& S_data)
     {
         amrex::ParmParse pp("integration");
 
@@ -34,10 +31,10 @@ public:
         switch (integrator_type)
         {
             case IntegratorTypes::ForwardEuler:
-                integrator_ptr = std::make_unique<FEIntegrator<T> >(S_old_external, S_new_external, initial_time);
+                integrator_ptr = std::make_unique<FEIntegrator<T> >(S_data);
                 break;
             case IntegratorTypes::ExplicitRungeKutta:
-                integrator_ptr = std::make_unique<RKIntegrator<T> >(S_old_external, S_new_external, initial_time);
+                integrator_ptr = std::make_unique<RKIntegrator<T> >(S_data);
                 break;
             default:
                 amrex::Error("integration.type did not name a valid integrator type.");
@@ -53,10 +50,6 @@ public:
 
         // By default, do nothing
         set_rhs([](T& S_rhs, const T& S_data, const amrex::Real time){});
-
-        // Set the initial time and step number
-        time = initial_time;
-        step_number = 0;
     }
 
     virtual ~TimeIntegrator() {}
@@ -76,16 +69,18 @@ public:
         integrator_ptr->set_rhs(F);
     }
 
-    void advance(const amrex::Real dt)
+    void advance(T& S_old, T& S_new, amrex::Real time, const amrex::Real timestep)
     {
-        integrator_ptr->advance(dt);
+        integrator_ptr->advance(S_old, S_new, time, timestep);
     }
 
-    void integrate(const amrex::Real start_timestep, const amrex::Real end_time, const int nsteps)
+    void integrate(T& S_old, T& S_new, amrex::Real start_time, const amrex::Real start_timestep,
+                   const amrex::Real end_time, const int nsteps)
     {
+        amrex::Real time = start_time;
         amrex::Real timestep = start_timestep;
         bool stop_advance = false;
-        for (step_number = 0; step_number < nsteps && !stop_advance; ++step_number)
+        for (int step_number = 0; step_number < nsteps && !stop_advance; ++step_number)
         {
             if (end_time - time < timestep) {
                 timestep = end_time - time;
@@ -93,55 +88,29 @@ public:
             }
 
             if (step_number > 0) {
-                std::swap(get_old_data(), get_new_data());
+                std::swap(S_old, S_new);
             }
 
             // Call the time integrator advance
-            integrator_ptr->advance(timestep);
+            integrator_ptr->advance(S_old, S_new, time, timestep);
 
             // Update our time variable
-            time = integrator_ptr->get_time();
+            time += timestep;
 
             // Call the post-timestep hook
             post_timestep();
         }
     }
 
+    void time_interpolate(const T& S_old, amrex::Real timestep_fraction, T& data)
+    {
+        integrator_ptr->time_interpolate(S_old, timestep_fraction, data);
+    }
+
     void map_data(std::function<void(T&)> Map)
     {
         integrator_ptr->map_data(Map);
     }
-
-    T& get_new_data()
-    {
-        return integrator_ptr->get_new_data();
-    }
-
-    T& get_old_data()
-    {
-        return integrator_ptr->get_old_data();
-    }
-
-    amrex::Real get_time()
-    {
-        return time;
-    }
-
-    amrex::Real get_timestep()
-    {
-        return timestep;
-    }
-
-    void set_timestep(amrex::Real dt)
-    {
-        timestep = dt;
-    }
-
-    int get_step_number()
-    {
-        return step_number;
-    }
-
 };
 
 #endif

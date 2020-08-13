@@ -109,15 +109,9 @@ private:
 
 protected:
     std::function<void (T&, amrex::Real)> post_update;
-    T& S_old;
-    T& S_new;
-    amrex::Real time;
 
 public:
-    IntegratorBase(T& S_old_external, T& S_new_external, amrex::Real initial_time) :
-                        time(initial_time),
-                        S_old(S_old_external),
-                        S_new(S_new_external) {}
+    IntegratorBase() {}
 
     virtual ~IntegratorBase() {}
 
@@ -131,7 +125,7 @@ public:
         post_update = F;
     }
 
-    virtual amrex::Real advance(const amrex::Real timestep)
+    virtual amrex::Real advance(T& S_old, T& S_new, amrex::Real time, const amrex::Real timestep)
     {
         return timestep;
     }
@@ -141,26 +135,9 @@ public:
         Fun(S_rhs, S_data, time);
     }
 
-    T& get_new_data()
-    {
-        return S_new;
-    }
+    virtual void time_interpolate(const T& S_old, amrex::Real timestep_fraction, T& data);
 
-    T& get_old_data()
-    {
-        return S_old;
-    }
-
-    void map_data(std::function<void(T&)> Map)
-    {
-        Map(get_old_data());
-        Map(get_new_data());
-    }
-
-    amrex::Real& get_time()
-    {
-        return time;
-    }
+    virtual void map_data(std::function<void(T&)> Map);
 };
 
 #endif
