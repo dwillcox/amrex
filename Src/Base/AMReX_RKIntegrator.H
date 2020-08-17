@@ -236,7 +236,7 @@ public:
 
     void map_data(std::function<void(T&)> Map)
     {
-        for (auto F : F_nodes) {
+        for (auto& F : F_nodes) {
             Map(*F);
         }
     }
