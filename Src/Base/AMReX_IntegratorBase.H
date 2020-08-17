@@ -135,9 +135,9 @@ public:
         Fun(S_rhs, S_data, time);
     }
 
-    virtual void time_interpolate(const T& S_old, amrex::Real timestep_fraction, T& data);
+    virtual void time_interpolate(const T& S_old, amrex::Real timestep_fraction, T& data) {}
 
-    virtual void map_data(std::function<void(T&)> Map);
+    virtual void map_data(std::function<void(T&)> Map) {}
 };
 
 #endif
