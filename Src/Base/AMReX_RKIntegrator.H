@@ -15,7 +15,6 @@ class RKIntegrator : public IntegratorBase<T>
 {
 private:
     amrex::Real timestep;
-
     typedef IntegratorBase<T> BaseT;
 
     int tableau_type;
@@ -155,8 +154,9 @@ public:
 
     virtual ~RKIntegrator() {}
 
-    amrex::Real advance(T& S_old, T& S_new, amrex::Real time, const amrex::Real timestep)
+    amrex::Real advance(T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step)
     {
+        timestep = time_step;
         // Assume before advance() that S_old is valid data at the current time ("time" argument)
         // And that if data is a MultiFab, both S_old and S_new contain ghost cells for evaluating a stencil based RHS
         // We need this from S_old. This is convenient for S_new to have so we can use it
@@ -208,16 +208,16 @@ public:
         return timestep;
     }
 
-    void time_interpolate(const T& S_old, amrex::Real timestep_fraction, T& data)
+    void time_interpolate(const T& S_new, const T& S_old, amrex::Real timestep_fraction, T& data)
     {
         // data = S_old*(1-time_step_fraction) + S_new*(time_step_fraction)
-        
         /*
         data.setVal(0);
         
         IntegratorOps<T>::Saxpy(data, 1-timestep_fraction, S_old);
         IntegratorOps<T>::Saxpy(data, timestep_fraction, S_new);
         */
+        
         
         // currently we only do this for 4th order RK
         AMREX_ASSERT(number_nodes == 4);
@@ -243,6 +243,7 @@ public:
         // data += (-1/2 * chi^2 + 2/3 * chi^3) * k4
         c = -0.5 * std::pow(timestep_fraction, 2) + 2./3. * std::pow(timestep_fraction, 3);
         IntegratorOps<T>::Saxpy(data, c*timestep, *F_nodes[3]);
+        
     } 
 
     void map_data(std::function<void(T&)> Map)

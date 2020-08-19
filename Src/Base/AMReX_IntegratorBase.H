@@ -111,6 +111,7 @@ protected:
     std::function<void (T&, amrex::Real)> post_update;
 
 public:
+    amrex::Real timestep;
     IntegratorBase() {}
 
     virtual ~IntegratorBase() {}
