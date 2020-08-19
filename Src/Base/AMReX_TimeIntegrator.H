@@ -102,9 +102,9 @@ public:
         }
     }
 
-    void time_interpolate(const T& S_old, amrex::Real timestep_fraction, T& data)
+    void time_interpolate(const T& S_new, const T& S_old, amrex::Real timestep_fraction, T& data)
     {
-        integrator_ptr->time_interpolate(S_old, timestep_fraction, data);
+        integrator_ptr->time_interpolate(S_new, S_old, timestep_fraction, data);
     }
 
     void map_data(std::function<void(T&)> Map)

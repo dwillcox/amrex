@@ -14,6 +14,8 @@ template<class T>
 class RKIntegrator : public IntegratorBase<T>
 {
 private:
+    amrex::Real timestep;
+
     typedef IntegratorBase<T> BaseT;
 
     int tableau_type;
@@ -208,6 +210,15 @@ public:
 
     void time_interpolate(const T& S_old, amrex::Real timestep_fraction, T& data)
     {
+        // data = S_old*(1-time_step_fraction) + S_new*(time_step_fraction)
+        
+        /*
+        data.setVal(0);
+        
+        IntegratorOps<T>::Saxpy(data, 1-timestep_fraction, S_old);
+        IntegratorOps<T>::Saxpy(data, timestep_fraction, S_new);
+        */
+        
         // currently we only do this for 4th order RK
         AMREX_ASSERT(number_nodes == 4);
 
@@ -219,19 +230,19 @@ public:
 
         // data += (chi - 3/2 * chi^2 + 2/3 * chi^3) * k1
         c = timestep_fraction - 1.5 * std::pow(timestep_fraction, 2) + 2./3. * std::pow(timestep_fraction, 3);
-        IntegratorOps<T>::Saxpy(data, c, *F_nodes[0]);
+        IntegratorOps<T>::Saxpy(data, c*timestep, *F_nodes[0]);
 
         // data += (chi^2 - 2/3 * chi^3) * k2
         c = std::pow(timestep_fraction, 2) - 2./3. * std::pow(timestep_fraction, 3);
-        IntegratorOps<T>::Saxpy(data, c, *F_nodes[1]);
+        IntegratorOps<T>::Saxpy(data, c*timestep, *F_nodes[1]);
 
         // data += (chi^2 - 2/3 * chi^3) * k3
         c = std::pow(timestep_fraction, 2) - 2./3. * std::pow(timestep_fraction, 3);
-        IntegratorOps<T>::Saxpy(data, c, *F_nodes[2]);
+        IntegratorOps<T>::Saxpy(data, c*timestep, *F_nodes[2]);
 
         // data += (-1/2 * chi^2 + 2/3 * chi^3) * k4
         c = -0.5 * std::pow(timestep_fraction, 2) + 2./3. * std::pow(timestep_fraction, 3);
-        IntegratorOps<T>::Saxpy(data, c, *F_nodes[3]);
+        IntegratorOps<T>::Saxpy(data, c*timestep, *F_nodes[3]);
     } 
 
     void map_data(std::function<void(T&)> Map)
