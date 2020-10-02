@@ -38,38 +38,46 @@ struct IntegratorOps<T, typename std::enable_if<std::is_base_of<amrex::ParticleC
         typedef amrex::Particle<T::NStructReal, T::NStructInt> ParticleType;
 
         int lev = 0;
-        TParIter pty(Y, lev);
-        TParIter ptx(X, lev);
 
-        auto checkValid = [&]() -> bool {
-            bool pty_v = pty.isValid();
-            bool ptx_v = ptx.isValid();
-            AMREX_ASSERT(pty_v == ptx_v);
-            if (pty_v && ptx_v) {
-                auto pair_y = pty.GetPairIndex();
-                auto pair_x = ptx.GetPairIndex();
-                amrex::Print() << "x: gidx, tidx = " << pair_x.first << " " << pair_x.second << "\n";
-                amrex::Print() << "y: gidx, tidx = " << pair_y.first << " " << pair_y.second << "\n";
-                AMREX_ASSERT(pair_x.first == pair_y.first && pair_x.second == pair_y.second);
+        struct ParIterPair {
+            TParIter pty, ptx;
+
+            ParIterPair(T& Y, T& X, int lev)
+                : pty(Y, lev), ptx(X, lev) {}
+
+            bool IsValid() {
+                bool pty_v = pty.isValid();
+                bool ptx_v = ptx.isValid();
+                AMREX_ASSERT(pty_v == ptx_v);
+                if (pty_v && ptx_v) {
+                    auto pair_y = pty.GetPairIndex();
+                    auto pair_x = ptx.GetPairIndex();
+                    amrex::Print() << "x: gidx, tidx = " << pair_x.first << " " << pair_x.second << "\n";
+                    amrex::Print() << "y: gidx, tidx = " << pair_y.first << " " << pair_y.second << "\n";
+                    AMREX_ASSERT(pair_x.first == pair_y.first && pair_x.second == pair_y.second);
+                }
+                return pty_v && ptx_v;
             }
-            return pty_v && ptx_v;
-        };
 
-        auto ptIncrement = [&](){ ++pty; ++ptx; };
+            void Increment() {
+                ++pty;
+                ++ptx;
+            }
+        };
 
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
-        for (; checkValid(); ptIncrement())
+        for (ParIterPair pip(Y, X, lev); pip.IsValid(); pip.Increment())
         {
-            const int npy  = pty.numParticles();
-            const int npx  = ptx.numParticles();
+            const int npy  = pip.pty.numParticles();
+            const int npx  = pip.ptx.numParticles();
             amrex::Print() << "npx = " << npx << "\n";
             amrex::Print() << "npy = " << npy << "\n";
             AMREX_ASSERT(npy == npx);
 
-            ParticleType* psy = &(pty.GetArrayOfStructs()[0]);
-            ParticleType* psx = &(ptx.GetArrayOfStructs()[0]);
+            ParticleType* psy = &(pip.pty.GetArrayOfStructs()[0]);
+            ParticleType* psx = &(pip.ptx.GetArrayOfStructs()[0]);
 
             auto particle_apply_rhs = T::particle_apply_rhs;
 
