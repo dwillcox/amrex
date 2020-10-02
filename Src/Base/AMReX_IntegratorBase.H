@@ -45,6 +45,13 @@ struct IntegratorOps<T, typename std::enable_if<std::is_base_of<amrex::ParticleC
             bool pty_v = pty.isValid();
             bool ptx_v = ptx.isValid();
             AMREX_ASSERT(pty_v == ptx_v);
+            if (pty_v && ptx_v) {
+                auto pair_y = pty.GetPairIndex();
+                auto pair_x = ptx.GetPairIndex();
+                amrex::Print() << "x: gidx, tidx = " << pair_x.first << " " << pair_x.second << "\n";
+                amrex::Print() << "y: gidx, tidx = " << pair_y.first << " " << pair_y.second << "\n";
+                AMREX_ASSERT(pair_x.first == pair_y.first && pair_x.second == pair_y.second);
+            }
             return pty_v && ptx_v;
         };
 
@@ -57,6 +64,8 @@ struct IntegratorOps<T, typename std::enable_if<std::is_base_of<amrex::ParticleC
         {
             const int npy  = pty.numParticles();
             const int npx  = ptx.numParticles();
+            amrex::Print() << "npx = " << npx << "\n";
+            amrex::Print() << "npy = " << npy << "\n";
             AMREX_ASSERT(npy == npx);
 
             ParticleType* psy = &(pty.GetArrayOfStructs()[0]);
@@ -67,6 +76,16 @@ struct IntegratorOps<T, typename std::enable_if<std::is_base_of<amrex::ParticleC
             amrex::ParallelFor ( npy, [=] AMREX_GPU_DEVICE (int i) {
                 ParticleType& py = psy[i];
                 const ParticleType& px = psx[i];
+                amrex::Print() << "going to try saxpy for particles " << px.id() << " and " << py.id() << "\n";
+            });
+
+            amrex::Print() << "... actually doing saxpy\n";
+
+            amrex::ParallelFor ( npy, [=] AMREX_GPU_DEVICE (int i) {
+                ParticleType& py = psy[i];
+                const ParticleType& px = psx[i];
+                amrex::Print() << "saxpy for particles " << px.id() << " and " << py.id() << "\n";
+                AMREX_ASSERT(py.id() == px.id());
                 particle_apply_rhs(py, a, px);
             });
         }
