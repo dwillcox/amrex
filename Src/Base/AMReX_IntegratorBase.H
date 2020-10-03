@@ -34,69 +34,40 @@ struct IntegratorOps<T, typename std::enable_if<std::is_base_of<amrex::ParticleC
     static void Saxpy(T& Y, const amrex::Real a, T& X)
     {
         // Calculate Y += a * X using a particle-level saxpy function supplied by the particle container T
-        typedef amrex::ParIter<T::NStructReal, T::NStructInt, T::NArrayReal, T::NArrayInt> TParIter;
-        typedef amrex::Particle<T::NStructReal, T::NStructInt> ParticleType;
+        typedef typename T::ParIterType ParIterType;
+        typedef typename T::ParticleType ParticleType;
 
         int lev = 0;
-
-        struct ParIterPair {
-            TParIter pty, ptx;
-
-            ParIterPair(T& Y, T& X, int lev)
-                : pty(Y, lev), ptx(X, lev) {}
-
-            bool IsValid() {
-                bool pty_v = pty.isValid();
-                bool ptx_v = ptx.isValid();
-                AMREX_ASSERT(pty_v == ptx_v);
-                if (pty_v && ptx_v) {
-                    auto pair_y = pty.GetPairIndex();
-                    auto pair_x = ptx.GetPairIndex();
-                    amrex::Print() << "x: gidx, tidx = " << pair_x.first << " " << pair_x.second << "\n";
-                    amrex::Print() << "y: gidx, tidx = " << pair_y.first << " " << pair_y.second << "\n";
-                    AMREX_ASSERT(pair_x.first == pair_y.first && pair_x.second == pair_y.second);
-                }
-                return pty_v && ptx_v;
-            }
-
-            void Increment() {
-                ++pty;
-                ++ptx;
-            }
-        };
 
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
-        for (ParIterPair pip(Y, X, lev); pip.IsValid(); pip.Increment())
-        {
-            const int npy  = pip.pty.numParticles();
-            const int npx  = pip.ptx.numParticles();
-            amrex::Print() << "npx = " << npx << "\n";
-            amrex::Print() << "npy = " << npy << "\n";
-            AMREX_ASSERT(npy == npx);
+    for (ParIterType pti(Y, lev); pti.isValid(); ++pti)
+    {
+        auto grid_tile = pti.GetPairIndex();
 
-            ParticleType* psy = &(pip.pty.GetArrayOfStructs()[0]);
-            ParticleType* psx = &(pip.ptx.GetArrayOfStructs()[0]);
+        auto& ptileY = Y.ParticlesAt(lev, grid_tile.first, grid_tile.second);
+        auto& ptileX = X.ParticlesAt(lev, grid_tile.first, grid_tile.second);
 
-            auto particle_apply_rhs = T::particle_apply_rhs;
+        AMREX_ASSERT(ptileY.numParticles() == ptileX.numParticles());
 
-            amrex::ParallelFor ( npy, [=] AMREX_GPU_DEVICE (int i) {
-                ParticleType& py = psy[i];
-                const ParticleType& px = psx[i];
-                amrex::Print() << "going to try saxpy for particles " << px.id() << " and " << py.id() << "\n";
-            });
+        int np = ptileY.numParticles();
 
-            amrex::Print() << "... actually doing saxpy\n";
+        ParticleType* psY = &(ptileY.GetArrayOfStructs()[0]);
+        ParticleType* psX = &(ptileX.GetArrayOfStructs()[0]);
 
-            amrex::ParallelFor ( npy, [=] AMREX_GPU_DEVICE (int i) {
-                ParticleType& py = psy[i];
-                const ParticleType& px = psx[i];
-                amrex::Print() << "saxpy for particles " << px.id() << " and " << py.id() << "\n";
-                AMREX_ASSERT(py.id() == px.id());
-                particle_apply_rhs(py, a, px);
-            });
-        }
+        auto particle_apply_rhs = T::particle_apply_rhs;
+
+        amrex::ParallelFor (np, [=] AMREX_GPU_DEVICE (int i) {
+            ParticleType& py = psY[i];
+            const ParticleType& px = psX[i];
+
+            AMREX_ASSERT(py.id() == px.id());
+
+            particle_apply_rhs(py, a, px);
+        });
+    }
+
     }
 
 };
