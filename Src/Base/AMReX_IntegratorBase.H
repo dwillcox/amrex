@@ -149,7 +149,7 @@ public:
         return S_old;
     }
 
-    void map_data(std::function<void(T&)> Map)
+    virtual void map_data(std::function<void(T&)> Map)
     {
         Map(get_old_data());
         Map(get_new_data());
