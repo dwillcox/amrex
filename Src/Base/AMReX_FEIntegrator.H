@@ -53,7 +53,7 @@ public:
     {
         Map(BaseT::get_old_data());
 
-        for (T* F : F_nodes) {
+        for (auto& F : F_nodes) {
             Map(*F);
         }
 
