@@ -97,7 +97,6 @@ public:
             }
 
             // Call the time integrator advance
-            amrex::Print() << "calling advance...\n";
             integrator_ptr->advance(timestep);
 
             // Update our time variable
