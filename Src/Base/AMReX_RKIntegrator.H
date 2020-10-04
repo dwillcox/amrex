@@ -169,7 +169,6 @@ public:
         // Fill the RHS F_nodes at each stage
         for (int i = 0; i < number_nodes; ++i)
         {
-            amrex::Print() << "doing node " << i << "\n";
             // Get current stage time, t = t_old + h * Ci
             amrex::Real stage_time = time + timestep * nodes[i];
 
@@ -182,18 +181,15 @@ public:
                 // We should fuse these kernels ...
                 for (int j = 0; j < i; ++j)
                 {
-                    amrex::Print() << "doing saxpy " << j << "\n";
                     IntegratorOps<T>::Saxpy(S_new, timestep * tableau[i][j], *F_nodes[j]);
                 }
 
                 // Call the post-update hook for the stage state value
-                amrex::Print() << "calling post update\n";
                 BaseT::post_update(S_new, stage_time);
             }
 
             // Fill F[i], the RHS at the current stage
             // F[i] = RHS(y, t) at y = stage_value, t = stage_time
-            amrex::Print() << "calling rhs\n";
             IntegratorOps<T>::Copy(*F_nodes[i], S_old);
             BaseT::rhs(*F_nodes[i], S_new, stage_time);
         }
@@ -201,13 +197,9 @@ public:
         // Fill new State, starting with S_new = S_old.
         // Then Saxpy S_new += h * Wi * Fi for integration weights Wi
         // We should fuse these kernels ...
-        amrex::Print() << "doing final copy\n";
         IntegratorOps<T>::Copy(S_new, S_old);
         for (int i = 0; i < number_nodes; ++i)
         {
-            amrex::Print() << "doing saxpy " << i << "\n";
-            S_new.WriteAsciiFile("s_new");
-            F_nodes[i]->WriteAsciiFile("f_nodes");
             IntegratorOps<T>::Saxpy(S_new, timestep * weights[i], *F_nodes[i]);
         }
 
@@ -228,7 +220,7 @@ public:
     {
         Map(BaseT::get_old_data());
 
-        for (T* F : F_nodes) {
+        for (auto& F : F_nodes) {
             Map(*F);
         }
 
