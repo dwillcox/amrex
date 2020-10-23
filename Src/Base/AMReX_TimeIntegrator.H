@@ -85,12 +85,13 @@ public:
 
     void integrate(const amrex::Real start_timestep, const amrex::Real end_time, const int nsteps)
     {
-        amrex::Real timestep = start_timestep;
+        set_timestep(start_timestep);
+
         bool stop_advance = false;
         for (; step_number < nsteps && !stop_advance; ++step_number)
         {
             if (end_time - time < timestep) {
-                timestep = end_time - time;
+                set_timestep(end_time - time);
                 stop_advance = true;
             }
 
