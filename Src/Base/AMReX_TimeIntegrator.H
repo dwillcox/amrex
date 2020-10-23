@@ -24,7 +24,8 @@ private:
     std::function<void ()> post_timestep;
 
 public:
-    TimeIntegrator(T& S_old_external, T& S_new_external, amrex::Real initial_time, int initial_step)
+    TimeIntegrator(T& S_old_external, T& S_new_external,
+                   amrex::Real initial_time = 0.0, int initial_step = 0)
     {
         amrex::ParmParse pp("integration");
 
@@ -55,7 +56,7 @@ public:
         set_rhs([](T& S_rhs, const T& S_data, const amrex::Real time){});
 
         // Set the initial time and step number
-        timestep = 0;
+        timestep = 0.0;
         time = initial_time;
         step_number = initial_step;
     }
