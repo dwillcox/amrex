@@ -20,12 +20,13 @@ private:
     amrex::Real time;
     amrex::Real timestep;
     int step_number;
+    const int initial_step_number;
     std::unique_ptr<IntegratorBase<T> > integrator_ptr;
     std::function<void ()> post_timestep;
 
 public:
     TimeIntegrator(T& S_old_external, T& S_new_external,
-                   amrex::Real initial_time = 0.0, int initial_step = 0)
+                   amrex::Real initial_time = 0.0, int initial_step = 0) : initial_step_number(initial_step)
     {
         amrex::ParmParse pp("integration");
 
@@ -95,7 +96,7 @@ public:
                 stop_advance = true;
             }
 
-            if (step_number > 0) {
+            if (step_number > initial_step_number) {
                 std::swap(get_old_data(), get_new_data());
             }
 
