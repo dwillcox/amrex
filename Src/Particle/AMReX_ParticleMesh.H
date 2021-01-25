@@ -33,12 +33,25 @@ ParticleToMesh (PC const& pc, MF& mf, int lev, F&& f)
             const auto pstruct = aos().dataPtr();        
 
             FArrayBox& fab = (*mf_pointer)[pti];
-            auto fabarr = fab.array();
+
+            Array<FArrayBox, 4> dfabs;
+            GpuArray< Array4<Real> > dfabarrs;
+            Box tile_box = pti.tilebox();
+            tile_box.grow(mf_pointer->nGrowVect());
+            for (int i = 0; i < 4; ++i) {
+                dfabs[i].resize(tile_box,mf_pointer->nComp());
+                dfabs[i].setVal<RunOn::Device>(0.0);
+                dfabarrs[i] = dfabs[i].array();
+            }
             
             AMREX_FOR_1D( np, i,
             {
-                f(pstruct[i], fabarr);
+                f(pstruct[i], dfabarrs[i % 4]);
             });
+
+            for (int i = 0; i < 4; ++i) {
+                fab.plus<RunOn::Device>(dfabs[i], 0, 0, mf_pointer->nComp());
+            }
         }
     }
     else
