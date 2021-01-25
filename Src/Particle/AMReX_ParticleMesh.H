@@ -35,7 +35,7 @@ ParticleToMesh (PC const& pc, MF& mf, int lev, F&& f)
             FArrayBox& fab = (*mf_pointer)[pti];
 
             Array<FArrayBox, 4> dfabs;
-            GpuArray< Array4<Real> > dfabarrs;
+            GpuArray<Array4<Real>, 4> dfabarrs;
             Box tile_box = pti.tilebox();
             tile_box.grow(mf_pointer->nGrowVect());
             for (int i = 0; i < 4; ++i) {
