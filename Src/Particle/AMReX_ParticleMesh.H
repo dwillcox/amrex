@@ -10,7 +10,7 @@ namespace amrex
 
 template <class PC, class MF, class F, EnableIf_t<IsParticleContainer<PC>::value, int> foo = 0>
 void
-ParticleToMesh (PC const& pc, MF& mf, int lev, F&& f)
+ParticleToMesh (PC const& pc, MF& mf, int lev, int gpu_registers, F&& f)
 {
     BL_PROFILE("amrex::ParticleToMesh");
     
@@ -25,6 +25,9 @@ ParticleToMesh (PC const& pc, MF& mf, int lev, F&& f)
 #ifdef AMREX_USE_GPU
     if (Gpu::inLaunchRegion())
     {
+        constexpr int MaxGpuRegisters = 10;
+        AMREX_ASSERT(gpu_registers >= 1 && gpu_registers <= MaxGpuRegisters);
+
         for(ParIter pti(pc, lev); pti.isValid(); ++pti)
         {
             const auto& tile = pti.GetParticleTile();
@@ -34,23 +37,24 @@ ParticleToMesh (PC const& pc, MF& mf, int lev, F&& f)
 
             FArrayBox& fab = (*mf_pointer)[pti];
 
-            constexpr int gpu_fab_registers = 10;
-            Array<FArrayBox, gpu_fab_registers> dfabs;
-            GpuArray<Array4<Real>, gpu_fab_registers> dfabarrs;
+            Array<FArrayBox, MaxGpuRegisters-1> dfabs;
+            GpuArray<Array4<Real>, MaxGpuRegisters> dfabarrs;
+            dfabarrs[0] = fab.array();
+
             Box tile_box = pti.tilebox();
             tile_box.grow(mf_pointer->nGrowVect());
-            for (int i = 0; i < gpu_fab_registers; ++i) {
+            for (int i = 0; i < gpu_registers-1; ++i) {
                 dfabs[i].resize(tile_box,mf_pointer->nComp());
                 dfabs[i].setVal<RunOn::Device>(0.0);
-                dfabarrs[i] = dfabs[i].array();
+                dfabarrs[i+1] = dfabs[i].array();
             }
             
             AMREX_FOR_1D( np, i,
             {
-                f(pstruct[i], dfabarrs[i % gpu_fab_registers]);
+                f(pstruct[i], dfabarrs[i % gpu_registers]);
             });
 
-            for (int i = 0; i < gpu_fab_registers; ++i) {
+            for (int i = 0; i < gpu_registers-1; ++i) {
                 fab.plus<RunOn::Device>(dfabs[i], 0, 0, mf_pointer->nComp());
             }
         }
