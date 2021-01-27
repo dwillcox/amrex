@@ -55,7 +55,7 @@ ParticleToMesh (PC const& pc, MF& mf, int lev, int gpu_registers, F&& f)
             });
 
             for (int i = 0; i < gpu_registers-1; ++i) {
-                fab.plus<RunOn::Device>(dfabs[i], 0, 0, mf_pointer->nComp());
+                fab.plus<RunOn::Device>(dfabs[i], tile_box, tile_box, 0, 0, mf_pointer->nComp());
             }
         }
     }
