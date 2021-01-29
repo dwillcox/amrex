@@ -38,6 +38,7 @@ ParticleToMesh (PC const& pc, MF& mf, int lev, int gpu_registers, F&& f)
             FArrayBox& fab = (*mf_pointer)[pti];
 
             Array<FArrayBox, MaxGpuRegisters-1> dfabs;
+            Array<Elixir, MaxGpuRegisters-1> delixir;
             GpuArray<Array4<Real>, MaxGpuRegisters> dfabarrs;
             dfabarrs[0] = fab.array();
 
@@ -46,6 +47,7 @@ ParticleToMesh (PC const& pc, MF& mf, int lev, int gpu_registers, F&& f)
             for (int i = 0; i < gpu_registers-1; ++i) {
                 dfabs[i].resize(tile_box,mf_pointer->nComp());
                 dfabs[i].setVal<RunOn::Device>(0.0);
+                delixir[i] = dfabs[i].elixir();
                 dfabarrs[i+1] = dfabs[i].array();
             }
             
