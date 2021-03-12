@@ -761,18 +761,19 @@ WriteGenericPlotfileHeaderHDF5 (hid_t fid,
     H5Tclose(comp_dtype);
 }
 
-void WriteMultiLevelPlotfileHDF5 (const std::string& plotfilename,
-                                  int nlevels,
-                                  const Vector<const MultiFab*>& mf,
-                                  const Vector<std::string>& varnames,
-                                  const Vector<Geometry>& geom,
-                                  Real time,
-                                  const Vector<int>& level_steps,
-                                  const Vector<IntVect>& ref_ratio,
-                                  const std::string &versionName,
-                                  const std::string &levelPrefix,
-                                  const std::string &mfPrefix,
-                                  const Vector<std::string>& extra_dirs)
+void WriteMultiLevelPlotfileHDF5 (const std::string& plotfilename, 
+				  int nlevels,
+                         	  const Vector<const MultiFab*>& mf,
+                         	  const Vector<std::string>& varnames,
+                         	  const Vector<Geometry>& geom, 
+				  Real time, 
+				  const Vector<int>& level_steps,
+                         	  const Vector<IntVect>& ref_ratio,
+                              const bool &appendToFile,
+                         	  const std::string &versionName,
+                         	  const std::string &levelPrefix,
+                         	  const std::string &mfPrefix,
+                         	  const Vector<std::string>& extra_dirs)
 {
     BL_PROFILE("WriteMultiLevelPlotfileHDF5");
 
@@ -795,6 +796,12 @@ void WriteMultiLevelPlotfileHDF5 (const std::string& plotfilename,
     // Write out root level metadata
     hid_t fapl, dxpl, fid, grp;
 
+    hid_t sgrp;
+    char coarse_step_name[128];
+    if (appendToFile) {
+        sprintf(coarse_step_name, "coarse_step_%d", level_steps[0]);
+    }
+
     if(ParallelDescriptor::IOProcessor()) {
         BL_PROFILE_VAR("H5writeMetadata", h5dwm);
         // Have only one rank to create and write metadata (header)
@@ -806,8 +813,22 @@ void WriteMultiLevelPlotfileHDF5 (const std::string& plotfilename,
 #endif
 
         // Create the HDF5 file
-        fid = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
-        if (fid < 0)
+        if (appendToFile) {
+            // check if the plotfile already exists, and if so, reopen it, otherwise create
+            H5E_BEGIN_TRY
+                fid = H5Fopen(filename.c_str(), H5F_ACC_RDWR, fapl);
+            H5E_END_TRY
+            if (fid < 0) fid = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
+
+            // create a group labeled by the coarse level step number
+            // to store the current multilevel data
+            sgrp = H5Gcreate(fid, coarse_step_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+            if (sgrp < 0) Abort("unable to create coarse step group: " + std::string(coarse_step_name));
+        } else {
+            // overwrites any already existing plotfile by the same name
+            fid = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
+        }
+        if (fid < 0) 
             FileOpenFailed(filename.c_str());
 
         H5Pclose(fapl);
@@ -817,7 +838,11 @@ void WriteMultiLevelPlotfileHDF5 (const std::string& plotfilename,
             boxArrays[level] = mf[level]->boxArray();
         }
 
-        WriteGenericPlotfileHeaderHDF5(fid, nlevels, mf, boxArrays, varnames, geom, time, level_steps, ref_ratio, versionName, levelPrefix, mfPrefix, extra_dirs);
+        if (appendToFile) {
+            WriteGenericPlotfileHeaderHDF5(sgrp, nlevels, mf, boxArrays, varnames, geom, time, level_steps, ref_ratio, versionName, levelPrefix, mfPrefix, extra_dirs);
+        } else {
+            WriteGenericPlotfileHeaderHDF5(fid, nlevels, mf, boxArrays, varnames, geom, time, level_steps, ref_ratio, versionName, levelPrefix, mfPrefix, extra_dirs);
+        }
         H5Fclose(fid);
         BL_PROFILE_VAR_STOP(h5dwm);
     }
@@ -897,11 +922,21 @@ void WriteMultiLevelPlotfileHDF5 (const std::string& plotfilename,
     bool doConvert(*whichRD != FPC::NativeRealDescriptor());
     int whichRDBytes(whichRD->numBytes());
 
+    if (appendToFile) {
+        sgrp = H5Gopen(fid, coarse_step_name, H5P_DEFAULT);
+        if (sgrp < 0)
+            Abort("H5Gopen [" + std::string(coarse_step_name) + "] failed!");
+    }
+
     // Write data for each level
     char level_name[32];
     for (int level = 0; level <= finest_level; ++level) {
         sprintf(level_name, "level_%d", level);
-        grp = H5Gopen(fid, level_name, H5P_DEFAULT);
+        if (appendToFile) {
+            grp = H5Gopen(sgrp, level_name, H5P_DEFAULT);
+        } else {
+            grp = H5Gopen(fid, level_name, H5P_DEFAULT);
+        }
         if (grp < 0) {
             std::cout << "H5Gopen [" << level_name << "] failed!" << std::endl;
             continue;
@@ -1091,6 +1126,7 @@ void WriteMultiLevelPlotfileHDF5 (const std::string& plotfilename,
     H5Tclose(babox_id);
     H5Pclose(fapl);
     H5Pclose(dxpl);
+    if (appendToFile) H5Gclose(sgrp);
     H5Fclose(fid);
 
     delete whichRD;
@@ -1101,6 +1137,7 @@ void
 WriteSingleLevelPlotfileHDF5 (const std::string& plotfilename,
                           const MultiFab& mf, const Vector<std::string>& varnames,
                           const Geometry& geom, Real time, int level_step,
+                          const bool &appendToFile,
                           const std::string &versionName,
                           const std::string &levelPrefix,
                           const std::string &mfPrefix,
@@ -1112,7 +1149,7 @@ WriteSingleLevelPlotfileHDF5 (const std::string& plotfilename,
     Vector<IntVect> ref_ratio;
 
     WriteMultiLevelPlotfileHDF5(plotfilename, 1, mfarr, varnames, geomarr, time,
-                            level_steps, ref_ratio, versionName, levelPrefix, mfPrefix, extra_dirs);
+                            level_steps, ref_ratio, appendToFile, versionName, levelPrefix, mfPrefix, extra_dirs);
 }
 
 #endif
