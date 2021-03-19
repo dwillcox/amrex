@@ -79,10 +79,18 @@ void test ()
     Vector<DistributionMapping> dmap(nlevs);
 
     Vector<std::unique_ptr<MultiFab> > mf(nlevs);
+
+    Vector<Vector<std::unique_ptr<MultiFab> > > component_mf(ncomp);
+    for (int i = 0; i < ncomp; ++i)
+        component_mf[i].resize(nlevs);
+
     for (int lev = 0; lev < nlevs; lev++) {
         dmap[lev] = DistributionMapping{ba[lev]};
         mf[lev].reset(new MultiFab(ba[lev], dmap[lev], ncomp, nghost));
         mf[lev]->setVal(lev);
+
+        for (int i = 0; i < ncomp; ++i)
+            component_mf[i][lev].reset(new MultiFab(*mf[lev], amrex::make_alias, i, 1));
     }
 
     // Add some particles
@@ -132,8 +140,13 @@ void test ()
         if (ParallelDescriptor::IOProcessor())
             std::cout << "Writing plot file [" << fname << "]" << std::endl;
 #ifdef AMREX_USE_HDF5
-        WriteMultiLevelPlotfileHDF5(fname, nlevs, amrex::GetVecOfConstPtrs(mf),
-                                    varnames, geom, time, level_steps, ref_ratio);
+        // WriteMultiLevelPlotfileHDF5(fname, nlevs, amrex::GetVecOfConstPtrs(mf),
+        //                             varnames, geom, time, level_steps, ref_ratio, {"g0", "g1", "g2"});
+
+        for (int i = 0; i < ncomp; ++i) {
+            WriteMultiLevelPlotfileHDF5(fname, nlevs, amrex::GetVecOfConstPtrs(component_mf[i]),
+                                        {varnames[i]}, geom, time, level_steps, ref_ratio, {varnames[i]});
+        }
 #else
         WriteMultiLevelPlotfile(fname, nlevs, amrex::GetVecOfConstPtrs(mf),
                                 varnames, geom, time, level_steps, ref_ratio);

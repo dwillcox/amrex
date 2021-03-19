@@ -1,0 +1,67 @@
+MPI initialized with 4 MPI processes
+MPI initialized with thread support level 3
+AMReX (21.03-35-g5d32c74750b5) initialized
+Writing plot file [plt00000]
+Sleep for 2 seconds.
+Writing plot file [plt00001]
+Sleep for 2 seconds.
+Writing plot file [plt00002]
+Sleep for 2 seconds.
+Writing plot file [plt00003]
+Sleep for 2 seconds.
+Writing plot file [plt00004]
+Sleep for 2 seconds.
+Sleep for 2 seconds.
+Sleep for 2 seconds.
+Sleep for 2 seconds.
+
+
+TinyProfiler total time across processes [min...avg...max]: 19.78 ... 19.78 ... 19.78
+
+----------------------------------------------------------------------------------------------------
+Name                                                 NCalls  Excl. Min  Excl. Avg  Excl. Max   Max %
+----------------------------------------------------------------------------------------------------
+ParticleContainer::WriteParticlesHDF5()                   5      1.273      1.273      1.273   6.44%
+ParticleContainer<NSR, NSI, NAR, NAI>::InitRandom()       1     0.5806     0.5912     0.6005   3.04%
+ParticleContainer::RedistributeCPU()                      2     0.3481     0.3634     0.3794   1.92%
+ParticleContainer::ReadParticlesHDF5()                   16     0.3073     0.3111     0.3161   1.60%
+ParticleContainer::RedistributeMPI()                      2     0.2258     0.2521     0.2681   1.36%
+RedistributeMPI_copy                                      2     0.2391     0.2442     0.2526   1.28%
+H5DwriteData                                              5     0.1754     0.1764     0.1778   0.90%
+ParticleContainer::WriteHDF5ParticleData()                5     0.1042     0.1042     0.1042   0.53%
+H5writeAllLevel                                           5     0.0723    0.07369    0.07478   0.38%
+RedistributeMPI_locate                                    2    0.05021    0.05088    0.05194   0.26%
+WriteMultiLevelPlotfileHDF5                               5   0.002072    0.01293     0.0277   0.14%
+FabArray::setVal()                                        1   0.008008   0.009646    0.01127   0.06%
+ParticleContainer::RestartHDF5()                          1  0.0004567   0.005511   0.009313   0.05%
+H5writeMetadata                                           1          0   0.001359   0.005437   0.03%
+WriteGenericPlotfileHeaderHDF5()                          1          0   0.000451   0.001804   0.01%
+DistributionMapping::LeastUsedCPUs()                      1   2.89e-06  1.895e-05  2.708e-05   0.00%
+DistributionMapping::SFCProcessorMapDoIt()                1  7.297e-06  8.177e-06  8.972e-06   0.00%
+DistributionMapping::Distribute()                         1  1.625e-06  2.097e-06   2.32e-06   0.00%
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+Name                                                 NCalls  Incl. Min  Incl. Avg  Incl. Max   Max %
+----------------------------------------------------------------------------------------------------
+ParticleContainer::WriteHDF5ParticleData()                5      1.377      1.377      1.377   6.96%
+ParticleContainer::WriteParticlesHDF5()                   5      1.273      1.273      1.273   6.44%
+ParticleContainer<NSR, NSI, NAR, NAI>::InitRandom()       1      1.128      1.143      1.151   5.82%
+ParticleContainer::RedistributeCPU()                      2     0.8964     0.9106     0.9191   4.65%
+ParticleContainer::RestartHDF5()                          1     0.6698     0.6755     0.6852   3.46%
+ParticleContainer::RedistributeMPI()                      2     0.5289     0.5472     0.5591   2.83%
+ParticleContainer::ReadParticlesHDF5()                   16     0.3073     0.3111     0.3161   1.60%
+WriteMultiLevelPlotfileHDF5                               5     0.2586     0.2649     0.2778   1.40%
+RedistributeMPI_copy                                      2     0.2391     0.2442     0.2526   1.28%
+H5writeAllLevel                                           5     0.2501     0.2501     0.2502   1.26%
+H5DwriteData                                              5     0.1754     0.1764     0.1778   0.90%
+RedistributeMPI_locate                                    2    0.05021    0.05088    0.05194   0.26%
+FabArray::setVal()                                        1   0.008008   0.009646    0.01127   0.06%
+H5writeMetadata                                           1          0    0.00181   0.007241   0.04%
+WriteGenericPlotfileHeaderHDF5()                          1          0   0.000451   0.001804   0.01%
+DistributionMapping::SFCProcessorMapDoIt()                1    1.4e-05  2.922e-05  3.635e-05   0.00%
+DistributionMapping::LeastUsedCPUs()                      1   2.89e-06  1.895e-05  2.708e-05   0.00%
+DistributionMapping::Distribute()                         1  1.625e-06  2.097e-06   2.32e-06   0.00%
+----------------------------------------------------------------------------------------------------
+
+AMReX (21.03-35-g5d32c74750b5) finalized
