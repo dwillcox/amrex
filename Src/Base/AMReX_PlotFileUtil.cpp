@@ -600,6 +600,51 @@ static void SetHDF5fapl(hid_t fapl, MPI_Comm comm)
 
 }
 
+static
+Vector<hid_t> GetHDF5NestedGroups(hid_t fid, const Vector<std::string>& groupNames, bool createGroups=false)
+{
+    // Opens a list of nested groups named groupNames in an open HDF5 file with file ID fid
+    // Returns a Vector containing the opened group ids
+    // Creates groups if createGroups==true, otherwise simply opens them
+    Vector<hid_t> base_group_ids;
+    hid_t super_id = fid;
+
+    for (auto gname : groupNames) {
+        // Try to open this group
+        hid_t base_group;
+        H5E_BEGIN_TRY
+            base_group = H5Gopen(super_id, gname.c_str(), H5P_DEFAULT);
+        H5E_END_TRY
+
+        // If the group cannot be found, then an error will be raised unless createGroups == true.
+        // If the group cannot be found and createGroups == true, the group will be created.
+        if (base_group < 0) {
+            if (createGroups) {
+                base_group = H5Gcreate(super_id, gname.c_str(), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+                if (base_group < 0) {
+                    Error("unable to create group: " + gname);
+                }
+            } else {
+                Error("unable to open group: " + gname);
+            }
+        }
+        super_id = base_group;
+        base_group_ids.push_back(base_group);
+    }
+
+    return base_group_ids;
+}
+
+static void CloseHDF5NestedGroups(Vector<hid_t>& group_ids)
+{
+    // Closes all HDF5 groups with the ids in group_ids
+    // Also empties the vector group_ids
+    while (group_ids.size() > 0) {
+        H5Gclose(group_ids.back());
+        group_ids.pop_back();
+    }
+}
+
 void
 WriteGenericPlotfileHeaderHDF5 (hid_t fid,
                             int nlevels,
@@ -769,7 +814,7 @@ void WriteMultiLevelPlotfileHDF5 (const std::string& plotfilename,
 				  Real time, 
 				  const Vector<int>& level_steps,
                          	  const Vector<IntVect>& ref_ratio,
-                              const bool &appendToFile,
+                              const Vector<std::string>& baseGroups,
                          	  const std::string &versionName,
                          	  const std::string &levelPrefix,
                          	  const std::string &mfPrefix,
@@ -796,11 +841,7 @@ void WriteMultiLevelPlotfileHDF5 (const std::string& plotfilename,
     // Write out root level metadata
     hid_t fapl, dxpl, fid, grp;
 
-    hid_t sgrp;
-    char coarse_step_name[128];
-    if (appendToFile) {
-        sprintf(coarse_step_name, "coarse_step_%d", level_steps[0]);
-    }
+    Vector<hid_t> base_group_ids;
 
     if(ParallelDescriptor::IOProcessor()) {
         BL_PROFILE_VAR("H5writeMetadata", h5dwm);
@@ -813,17 +854,18 @@ void WriteMultiLevelPlotfileHDF5 (const std::string& plotfilename,
 #endif
 
         // Create the HDF5 file
-        if (appendToFile) {
+        if (baseGroups.size() > 0) {
             // check if the plotfile already exists, and if so, reopen it, otherwise create
             H5E_BEGIN_TRY
                 fid = H5Fopen(filename.c_str(), H5F_ACC_RDWR, fapl);
             H5E_END_TRY
-            if (fid < 0) fid = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
+            if (fid < 0) {
+                fid = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
+            }
 
-            // create a group labeled by the coarse level step number
-            // to store the current multilevel data
-            sgrp = H5Gcreate(fid, coarse_step_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-            if (sgrp < 0) Abort("unable to create coarse step group: " + std::string(coarse_step_name));
+            // for each group in the base group hierarchy, check to see if the group
+            // already exists in the file, and if not, create it
+            base_group_ids = GetHDF5NestedGroups(fid, baseGroups, true);
         } else {
             // overwrites any already existing plotfile by the same name
             fid = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
@@ -838,11 +880,10 @@ void WriteMultiLevelPlotfileHDF5 (const std::string& plotfilename,
             boxArrays[level] = mf[level]->boxArray();
         }
 
-        if (appendToFile) {
-            WriteGenericPlotfileHeaderHDF5(sgrp, nlevels, mf, boxArrays, varnames, geom, time, level_steps, ref_ratio, versionName, levelPrefix, mfPrefix, extra_dirs);
-        } else {
-            WriteGenericPlotfileHeaderHDF5(fid, nlevels, mf, boxArrays, varnames, geom, time, level_steps, ref_ratio, versionName, levelPrefix, mfPrefix, extra_dirs);
-        }
+        hid_t super_id = (base_group_ids.size() > 0) ? base_group_ids.back() : fid;
+        WriteGenericPlotfileHeaderHDF5(super_id, nlevels, mf, boxArrays, varnames, geom, time, level_steps, ref_ratio, versionName, levelPrefix, mfPrefix, extra_dirs);
+
+        CloseHDF5NestedGroups(base_group_ids);
         H5Fclose(fid);
         BL_PROFILE_VAR_STOP(h5dwm);
     }
@@ -922,21 +963,14 @@ void WriteMultiLevelPlotfileHDF5 (const std::string& plotfilename,
     bool doConvert(*whichRD != FPC::NativeRealDescriptor());
     int whichRDBytes(whichRD->numBytes());
 
-    if (appendToFile) {
-        sgrp = H5Gopen(fid, coarse_step_name, H5P_DEFAULT);
-        if (sgrp < 0)
-            Abort("H5Gopen [" + std::string(coarse_step_name) + "] failed!");
-    }
+    base_group_ids = GetHDF5NestedGroups(fid, baseGroups);
+    hid_t super_id = (base_group_ids.size() > 0) ? base_group_ids.back() : fid;
 
     // Write data for each level
     char level_name[32];
     for (int level = 0; level <= finest_level; ++level) {
         sprintf(level_name, "level_%d", level);
-        if (appendToFile) {
-            grp = H5Gopen(sgrp, level_name, H5P_DEFAULT);
-        } else {
-            grp = H5Gopen(fid, level_name, H5P_DEFAULT);
-        }
+        grp = H5Gopen(super_id, level_name, H5P_DEFAULT);
         if (grp < 0) {
             std::cout << "H5Gopen [" << level_name << "] failed!" << std::endl;
             continue;
@@ -1126,7 +1160,7 @@ void WriteMultiLevelPlotfileHDF5 (const std::string& plotfilename,
     H5Tclose(babox_id);
     H5Pclose(fapl);
     H5Pclose(dxpl);
-    if (appendToFile) H5Gclose(sgrp);
+    CloseHDF5NestedGroups(base_group_ids);
     H5Fclose(fid);
 
     delete whichRD;
@@ -1137,7 +1171,7 @@ void
 WriteSingleLevelPlotfileHDF5 (const std::string& plotfilename,
                           const MultiFab& mf, const Vector<std::string>& varnames,
                           const Geometry& geom, Real time, int level_step,
-                          const bool &appendToFile,
+                          const Vector<std::string>& baseGroups,
                           const std::string &versionName,
                           const std::string &levelPrefix,
                           const std::string &mfPrefix,
@@ -1149,7 +1183,7 @@ WriteSingleLevelPlotfileHDF5 (const std::string& plotfilename,
     Vector<IntVect> ref_ratio;
 
     WriteMultiLevelPlotfileHDF5(plotfilename, 1, mfarr, varnames, geomarr, time,
-                            level_steps, ref_ratio, appendToFile, versionName, levelPrefix, mfPrefix, extra_dirs);
+                            level_steps, ref_ratio, baseGroups, versionName, levelPrefix, mfPrefix, extra_dirs);
 }
 
 #endif
